@@ -2,6 +2,7 @@
 
 module HaskellScheme.Parser where
 import           Control.Monad
+import           Control.Monad.Except
 import           HaskellScheme.LispTypes
 import           Numeric
 import           Text.ParserCombinators.Parsec
@@ -104,7 +105,7 @@ parseExpr =
           return x
 
 
-readExpr :: String -> LispVal
+readExpr :: String -> ThrowsError LispVal
 readExpr input = case parse parseExpr "lisp" input of
-  Left  err -> String $ "Not match: " ++ show err
-  Right val -> val
+  Left  err -> throwError $ Parser err
+  Right val -> return val
