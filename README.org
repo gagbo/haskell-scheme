@@ -1,0 +1,18 @@
+#+TITLE: Writing a Scheme in Haskell
+
+* Start up
+This project uses stack and cabal, so =stack run -- input= should work fine
+(this is how I test it at least)
+
+* Purpose
+
+I did "build your own lisp" in C because I knew C but I didn't know how Lisps
+and language implementations work. I'm doing "build your own scheme" in Haskell
+because I'm starting to get how Scheme work (I intend to finish [[https://github.com/gagbo/xile][Xile]] some day)
+but I don't know how to write Haskell. So that means :
+
+- Scope :: I'll never finish this into a working Scheme implementation.
+
+- Haskell project :: I only want to write some real Haskell "from scratch" in
+  order to better understand how Haskell works, and hopefully make my Xmonad
+  behave as I like (I think I have an issue with =Xmonad.Layout.Decoration=)
