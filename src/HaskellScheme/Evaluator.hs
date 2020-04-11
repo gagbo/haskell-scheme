@@ -24,7 +24,7 @@ unwordsList = unwords . map showVal
 
 eval :: LispVal -> LispVal
 eval val@(String _) = val
-eval val@(Atom _) = val
+eval (Atom content) = Atom $ map toLower content
 eval val@(Number _) = val
 eval val@(Float _) = val
 eval val@(Character _) = val
