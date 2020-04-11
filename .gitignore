@@ -1,0 +1,8 @@
+# files produced by compiler
+*.o
+*.hi
+*.errors
+
+# files used by stack
+.stack-work/
+
