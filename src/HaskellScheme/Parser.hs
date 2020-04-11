@@ -1,19 +1,11 @@
 -- | Parser module
 
-module Parser where
+module HaskellScheme.Parser where
 import           Control.Monad
+import           HaskellScheme.LispTypes
 import           Numeric
 import           Text.ParserCombinators.Parsec
                                          hiding ( spaces )
-
-data LispVal = Atom String
- | List [LispVal]
- | DottedList [LispVal] LispVal
- | Number Integer
- | String String
- | Bool Bool
- | Character Char
- | Float Float
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>@^_~"
@@ -73,25 +65,25 @@ parseList = liftM List $ sepBy parseExpr spaces
 
 parseDottedList :: Parser LispVal
 parseDottedList = do
-  head <- endBy parseExpr spaces
-  tail <- char '.' >> spaces >> parseExpr
-  return $ DottedList head tail
+  listHead <- endBy parseExpr spaces
+  listTail <- char '.' >> spaces >> parseExpr
+  return $ DottedList listHead listTail
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
-  char '\''
+  _ <- char '\''
   x <- parseExpr
   return $ List [Atom "quote", x]
 
 parseQuasiquoted :: Parser LispVal
 parseQuasiquoted = do
-  char '`'
+  _ <- char '`'
   x <- parseExpr
   return $ List [Atom "quasiquote", x]
 
 parseUnquote :: Parser LispVal
 parseUnquote = do
-  char ','
+  _ <- char ','
   x <- parseExpr
   return $ List [Atom "unquote", x]
 
@@ -112,7 +104,7 @@ parseExpr =
           return x
 
 
-readExpr :: String -> String
+readExpr :: String -> Either String LispVal
 readExpr input = case parse parseExpr "lisp" input of
-  Left  err -> "No match: " ++ show err
-  Right val -> "Found value"
+  Left  err -> Left $ "No match: " ++ show err
+  Right val -> Right val
