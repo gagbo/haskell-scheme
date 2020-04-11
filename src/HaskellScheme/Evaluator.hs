@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 -- | Evaluation module
 
 module HaskellScheme.Evaluator where
@@ -6,15 +7,20 @@ import           Control.Monad.Except
 import           Data.Char                      ( toLower )
 
 eval :: LispVal -> ThrowsError LispVal
-eval val@(String    _                  ) = return val
-eval (    Atom      content            ) = return $ Atom $ map toLower content
-eval val@(Number    _                  ) = return val
-eval val@(Float     _                  ) = return val
-eval val@(Character _                  ) = return val
-eval val@(Bool      _                  ) = return val
-eval val@(List      []                 ) = return val
-eval (    List      [Atom "quote", val]) = return val
-eval (    List      (Atom func : args) ) = mapM eval args >>= apply func
+eval val@(String    _                               ) = return val
+eval (Atom content) = return $ Atom $ map toLower content
+eval val@(Number    _                               ) = return val
+eval val@(Float     _                               ) = return val
+eval val@(Character _                               ) = return val
+eval val@(Bool      _                               ) = return val
+eval val@(List      []                              ) = return val
+eval (    List      [Atom "quote", val]             ) = return val
+eval (    List      [Atom "if", ifPred, conseq, alt]) = do
+  result <- eval ifPred
+  case result of
+    Bool False -> eval alt
+    _          -> eval conseq
+eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
@@ -39,6 +45,24 @@ primitives =
   , ("bool?"         , isBool)
   , ("string->symbol", stringToSymbol)
   , ("symbol->string", symbolToString)
+  , ("eq?"           , eqv)
+  , ("eqv?"          , eqv)
+  , ("car"           , car)
+  , ("cdr"           , cdr)
+  , ("cons"          , cons)
+  , ("="             , numBoolBinop (==))
+  , ("<"             , numBoolBinop (<))
+  , (">"             , numBoolBinop (>))
+  , ("/="            , numBoolBinop (/=))
+  , (">="            , numBoolBinop (>=))
+  , ("<="            , numBoolBinop (<=))
+  , ("&&"            , boolBoolBinop (&&))
+  , ("||"            , boolBoolBinop (||))
+  , ("string=?"      , strBoolBinop (==))
+  , ("string<?"      , strBoolBinop (<))
+  , ("string>?"      , strBoolBinop (>))
+  , ("string<=?"     , strBoolBinop (<=))
+  , ("string>=?"     , strBoolBinop (>=))
   ]
 
 numericBinop
@@ -47,10 +71,41 @@ numericBinop _ [] = throwError $ NumArgs 2 []
 numericBinop _ singleVal@[_] = throwError $ NumArgs 2 singleVal
 numericBinop op params = mapM unpackNum params >>= return . Number . foldl1 op
 
+boolBinop
+  :: (LispVal -> ThrowsError a)
+  -> (a -> a -> Bool)
+  -> [LispVal]
+  -> ThrowsError LispVal
+boolBinop unpacker op args = if length args /= 2
+  then throwError $ NumArgs 2 args
+  else do
+    left  <- unpacker $ args !! 0
+    right <- unpacker $ args !! 1
+    return $ Bool $ left `op` right
+
+numBoolBinop :: (Integer -> Integer -> Bool) -> [LispVal] -> ThrowsError LispVal
+numBoolBinop = boolBinop unpackNum
+
+strBoolBinop :: (String -> String -> Bool) -> [LispVal] -> ThrowsError LispVal
+strBoolBinop = boolBinop unpackStr
+
+boolBoolBinop :: (Bool -> Bool -> Bool) -> [LispVal] -> ThrowsError LispVal
+boolBoolBinop = boolBinop unpackBool
+
 unpackNum :: LispVal -> ThrowsError Integer
 unpackNum (Number n  ) = return n
 unpackNum (List   [n]) = unpackNum n
 unpackNum notNum       = throwError $ TypeMismatch "number" notNum
+
+unpackStr :: LispVal -> ThrowsError String
+unpackStr (String s) = return s
+unpackStr (Number s) = return $ show s
+unpackStr (Bool   s) = return $ show s
+unpackStr notString  = throwError $ TypeMismatch "string" notString
+
+unpackBool :: LispVal -> ThrowsError Bool
+unpackBool (Bool b) = return b
+unpackBool notBool  = throwError $ TypeMismatch "boolean" notBool
 
 isSymbol :: [LispVal] -> ThrowsError LispVal
 isSymbol []                    = throwError $ NumArgs 1 []
@@ -93,3 +148,43 @@ symbolToString :: [LispVal] -> ThrowsError LispVal
 symbolToString [(Atom val)] = return $ String val
 symbolToString [nonAtomVal] = throwError $ TypeMismatch "symbol" nonAtomVal
 symbolToString vals         = throwError $ NumArgs 1 vals
+
+car :: [LispVal] -> ThrowsError LispVal
+car [List (x : _)        ] = return x
+car [DottedList (x : _) _] = return x
+car [badArg              ] = throwError $ TypeMismatch "pair" badArg
+car badArgList             = throwError $ NumArgs 1 badArgList
+
+cdr :: [LispVal] -> ThrowsError LispVal
+cdr [List (_ : xs)        ] = return $ List xs
+cdr [DottedList [_     ] x] = return x
+cdr [DottedList (_ : xs) x] = return $ DottedList xs x
+cdr [badArg               ] = throwError $ TypeMismatch "pair" badArg
+cdr badArgList              = throwError $ NumArgs 1 badArgList
+
+cons :: [LispVal] -> ThrowsError LispVal
+cons [x1, List []            ] = return $ List [x1]
+cons [x , List xs            ] = return $ List $ x : xs
+cons [x , DottedList xs xlast] = return $ DottedList (x : xs) xlast
+cons [x1, x2                 ] = return $ DottedList [x1] x2
+cons badArgList                = throwError $ NumArgs 2 badArgList
+
+eqv :: [LispVal] -> ThrowsError LispVal
+eqv [(Bool      arg1), (Bool arg2)     ] = return $ Bool $ arg1 == arg2
+eqv [(Number    arg1), (Number arg2)   ] = return $ Bool $ arg1 == arg2
+eqv [(String    arg1), (String arg2)   ] = return $ Bool $ arg1 == arg2
+eqv [(Character arg1), (Character arg2)] = return $ Bool $ arg1 == arg2
+eqv [(Float     arg1), (Float arg2)    ] = return $ Bool $ arg1 == arg2
+eqv [(Atom arg1), (Atom arg2)] =
+  return $ Bool $ (map toLower arg1) == (map toLower arg2)
+eqv [(DottedList xs x), (DottedList ys y)] =
+  eqv [List $ xs ++ [x], List $ ys ++ [y]]
+eqv [(List arg1), (List arg2)] =
+  return $ Bool $ (length arg1 == length arg2) && (all eqvPair $ zip arg1 arg2)
+ where
+  eqvPair (x1, x2) = case eqv [x1, x2] of
+    Left  _        -> False
+    Right (Bool val) -> val
+    Right _ -> False  -- Unreachable theoretically
+eqv [_, _]     = return $ Bool False
+eqv badArgList = throwError $ NumArgs 2 badArgList
