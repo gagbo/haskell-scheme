@@ -8,7 +8,7 @@ import           Text.ParserCombinators.Parsec
                                          hiding ( spaces )
 
 symbol :: Parser Char
-symbol = oneOf "!#$%&|*+-/:<=>@^_~"
+symbol = oneOf "!#$%&|*+-/:<=>@^_~?"
 
 spaces :: Parser ()
 spaces = skipMany1 space
@@ -104,7 +104,7 @@ parseExpr =
           return x
 
 
-readExpr :: String -> Either String LispVal
+readExpr :: String -> LispVal
 readExpr input = case parse parseExpr "lisp" input of
-  Left  err -> Left $ "No match: " ++ show err
-  Right val -> Right val
+  Left  err -> String $ "Not match: " ++ show err
+  Right val -> val

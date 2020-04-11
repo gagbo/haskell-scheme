@@ -3,11 +3,7 @@
 module Main where
 import           System.Environment
 import           HaskellScheme.Parser
-import           HaskellScheme.Evaluator()
+import           HaskellScheme.Evaluator
 
 main :: IO ()
-main = do
-  (expr : _) <- getArgs
-  putStrLn $ case (readExpr expr) of
-    Left err -> err
-    Right val -> show val
+main = getArgs >>= print . eval . readExpr . head
